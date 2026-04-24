@@ -1,14 +1,16 @@
 import os
 import streamlit as st
+from pprint import  pprint
 
 
 # Define the base URI of the API
 #   - Potential sources are in `.streamlit/secrets.toml` or in the Secrets section
 #     on Streamlit Cloud
 #   - The source selected is based on the shell variable passend when launching streamlit
-#     (shortcuts are included in Makefile). By default it takes the cloud API url
-if 'API_URI' in os.environ:
-    BASE_URI = st.secrets[os.environ.get('API_URI')]
+#    (shortcuts are included in Makefile). By default it takes the cloud API url
+
+if 'BASE_URI' in os.environ:
+    BASE_URI = os.environ.get('BASE_URI')
 else:
     BASE_URI = st.secrets['cloud_api_uri']
 # Add a '/' at the end if it's not there
