@@ -17,7 +17,7 @@ BASE_URI = BASE_URI if BASE_URI.endswith('/') else BASE_URI + '/'
 url = BASE_URI + 'predict'
 
 # Just displaying the source for the API. Remove this in your final version.
-st.markdown(f"Working with {https://marathon-api-95193027481.europe-west1.run.app}")
+st.markdown(f"Working with {url}")
 
 st.markdown("Now, the rest is up to you. Start creating your page.")
 
