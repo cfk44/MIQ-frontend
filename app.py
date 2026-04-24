@@ -17,7 +17,7 @@ BASE_URI = BASE_URI if BASE_URI.endswith('/') else BASE_URI + '/'
 url = BASE_URI + 'predict'
 
 # Just displaying the source for the API. Remove this in your final version.
-st.markdown(f"Working with {url}")
+st.markdown(f"Working with {http://127.0.0.1:8000 }")
 
 st.markdown("Now, the rest is up to you. Start creating your page.")
 
