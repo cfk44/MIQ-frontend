@@ -3,7 +3,6 @@ import os
 import streamlit as st
 from pprint import  pprint
 
-
 # Define the base URI of the API
 #   - Potential sources are in `.streamlit/secrets.toml` or in the Secrets section
 #     on Streamlit Cloud
@@ -19,8 +18,16 @@ BASE_URI = BASE_URI if BASE_URI.endswith('/') else BASE_URI + '/'
 # Define the url to be used by requests.get to get a prediction (adapt if needed)
 url = BASE_URI + 'predict'
 
+#Page setup
+st.set_page_config(page_title="MarathonIQ", layout="wide")
+
+with open('.streamlit/style.css') as f:
+    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+
 # Just displaying the source for the API. Remove this in your final version.
-st.markdown(f"Working with {url}")
+
+#st.markdown(f"Working with {url}")
 
 #st.markdown("Now, the rest is up to you. Start creating your page.")
 
@@ -39,133 +46,244 @@ FEATURE_MEDIANS = {
 # ============================================================
 # PAGE SETUP
 # ============================================================
-st.set_page_config(page_title="MarathonIQ", layout="wide")
-st.title("🏃 MarathonIQ")
-st.subheader("What actually predicts your marathon time?")
+
+st.markdown("""
+    <div style="
+        background: transparent;
+        padding: 1rem 0 0.5rem 0;
+        margin: 0;
+        text-align: center;
+    ">
+        <h1 style="color: black; margin-bottom: 0.5rem;">
+            🏃 MarathonIQ
+        </h1>
+        <p style="color: black; font-size: 1.2rem;">
+            What actually predicts your marathon time?
+        </p>
+    </div>
+""", unsafe_allow_html=True)
 st.markdown("---")
 
 # ============================================================
 # SECTION 1 — USER INPUTS
 # ============================================================
+
 st.header("Your Training Profile")
+level = st.radio("", ["🏃 First Marathon", "🏆 Already Ran a Marathon"], horizontal=True)
 
-# --- MUST HAVE ---
-st.subheader("Required")
-col1, col2 = st.columns(2)
+if level == "🏆 Already Ran a Marathon":
+    #url = url_base + '/expert'
+    # --- MUST HAVE ---
+    st.subheader("Required - with personal best")
+    col1, col2 = st.columns(2)
 
-with col1:
-    age = st.slider("Age", 18, 75, 35)
-    running_experience_months = st.slider("Running Experience (months)", 0, 240, 24)
-    weekly_mileage_km = st.slider("Weekly Mileage (km)", 0, 150, 40)
+    with col1:
+        age = st.slider("Age", 18, 75, 35)
+        running_experience_months = st.slider("Running Experience (months)", 0, 240, 24)
+        weekly_mileage_km = st.slider("Weekly Mileage (km)", 0, 150, 40)
 
-with col2:
-    injury_count = st.slider("Injuries this training cycle", 0, 10, 0)
-    injury_severity = st.selectbox(
-        "Injury Severity",
-        options=[0, 1, 2, 3],
-        format_func=lambda x: {0: "None", 1: "Minor",
-                                2: "Moderate", 3: "Severe"}[x]
-    )
-    course_difficulty = st.selectbox(
-        "Course Difficulty",
-        options=[1, 2, 3],
-        format_func=lambda x: {1: "Flat", 2: "Mixed", 3: "Hilly"}[x]
-    )
-
-# --- NICE TO HAVE ---
-with st.expander("➕ Improve your prediction (optional)"):
-    st.caption("These inputs are optional — we'll estimate them if left at 0")
-
-    col3, col4 = st.columns(2)
-
-    with col3:
-        vo2_max = st.slider("VO2 Max", 0.0, 80.0, 0.0)
-        resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 0, 100, 0)
-        recovery_score = st.slider("Recovery Score (1-10)", 0.0, 10.0, 0.0)
-        nutrition_score = st.slider("Nutrition Score (1-10)", 0.0, 10.0, 0.0)
-
-    with col4:
-        previous_marathon_count = st.slider("Previous Marathons", 0, 20, 0)
-        run_club_attendance = st.slider("Run Club Attendance (%)", 0, 100, 0)
-        marathon_weather = st.selectbox(
-            "Race Day Weather",
-            options=["Neutral", "Cold", "Hot", "Rainy", "Windy"]
+    with col2:
+        injury_count = st.slider("Injuries this training cycle", 0, 10, 0)
+        injury_severity = st.selectbox(
+            "Injury Severity",
+            options=[0, 1, 2, 3],
+            format_func=lambda x: {0: "None", 1: "Minor",
+                                    2: "Moderate", 3: "Severe"}[x]
+        )
+        course_difficulty = st.selectbox(
+            "Course Difficulty",
+            options=[1, 2, 3],
+            format_func=lambda x: {1: "Flat", 2: "Mixed", 3: "Hilly"}[x]
         )
 
-# ============================================================
-# SECTION 2 — IMPUTATION
-# ============================================================
-def impute_features(user_input: dict, marathon_weather: str) -> dict:
+    # --- NICE TO HAVE ---
+    with st.expander("➕ Improve your prediction (optional)"):
+        st.caption("These inputs are optional — we'll estimate them if left at 0")
 
-    # Median imputation — health metrics
-    for col, median in FEATURE_MEDIANS.items():
-        if user_input.get(col, 0) == 0:
-            user_input[col] = median
+        col3, col4 = st.columns(2)
 
-    # Zero imputation — count/behavioural
-    user_input['previous_marathon_count'] = user_input.get('previous_marathon_count', 0)
-    user_input['run_club_attendance_rate'] = user_input.get('run_club_attendance_rate', 0)
+        with col3:
+            vo2_max = st.slider("VO2 Max", 0.0, 80.0, 0.0)
+            resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 0, 100, 0)
+            recovery_score = st.slider("Recovery Score (1-10)", 0.0, 10.0, 0.0)
+            nutrition_score = st.slider("Nutrition Score (1-10)", 0.0, 10.0, 0.0)
 
-    # Weather OHE
-    user_input['marathon_weather_Cold']  = 1 if marathon_weather == 'Cold'  else 0
-    user_input['marathon_weather_Hot']   = 1 if marathon_weather == 'Hot'   else 0
-    user_input['marathon_weather_Rainy'] = 1 if marathon_weather == 'Rainy' else 0
-    user_input['marathon_weather_Windy'] = 1 if marathon_weather == 'Windy' else 0
+        with col4:
+            previous_marathon_count = st.slider("Previous Marathons", 0, 20, 0)
+            run_club_attendance = st.slider("Run Club Attendance (%)", 0, 100, 0)
+            marathon_weather = st.selectbox(
+                "Race Day Weather",
+                options=["Neutral", "Cold", "Hot", "Rainy", "Windy"]
+            )
 
-    return user_input
+    # ============================================================
+    # SECTION 2 — IMPUTATION
+    # ============================================================
+    def impute_features(user_input: dict, marathon_weather: str) -> dict:
 
-# Build feature vector
-user_input = {
-    'age':                        age,
-    'running_experience_months':  running_experience_months,
-    'weekly_mileage_km':          weekly_mileage_km,
-    'injury_count':               injury_count,
-    'injury_severity':            injury_severity,
-    'course_difficulty':          course_difficulty,
-    'vo2_max':                    vo2_max,
-    'resting_heart_rate_bpm':     resting_heart_rate,
-    'recovery_score':             recovery_score,
-    'nutrition_score':            nutrition_score,
-    'previous_marathon_count':    previous_marathon_count,
-    'run_club_attendance_rate':   run_club_attendance,
-}
+        # Median imputation — health metrics
+        for col, median in FEATURE_MEDIANS.items():
+            if user_input.get(col, 0) == 0:
+                user_input[col] = median
 
-feature_vector = impute_features(user_input, marathon_weather)
+        # Zero imputation — count/behavioural
+        user_input['previous_marathon_count'] = user_input.get('previous_marathon_count', 0)
+        user_input['run_club_attendance_rate'] = user_input.get('run_club_attendance_rate', 0)
+
+        # Weather OHE
+        user_input['marathon_weather_Cold']  = 1 if marathon_weather == 'Cold'  else 0
+        user_input['marathon_weather_Hot']   = 1 if marathon_weather == 'Hot'   else 0
+        user_input['marathon_weather_Rainy'] = 1 if marathon_weather == 'Rainy' else 0
+        user_input['marathon_weather_Windy'] = 1 if marathon_weather == 'Windy' else 0
+
+        return user_input
+
+    # Build feature vector
+    user_input = {
+        'age':                        age,
+        'running_experience_months':  running_experience_months,
+        'weekly_mileage_km':          weekly_mileage_km,
+        'injury_count':               injury_count,
+        'injury_severity':            injury_severity,
+        'course_difficulty':          course_difficulty,
+        'vo2_max':                    vo2_max,
+        'resting_heart_rate_bpm':     resting_heart_rate,
+        'recovery_score':             recovery_score,
+        'nutrition_score':            nutrition_score,
+        'previous_marathon_count':    previous_marathon_count,
+        'run_club_attendance_rate':   run_club_attendance,
+    }
+
+    feature_vector = impute_features(user_input, marathon_weather)
+
+else:
+    #url = url_base + '/general'
+    # --- MUST HAVE ---
+    st.subheader("Required")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        age = st.slider("Age", 18, 75, 35)
+        running_experience_months = st.slider("Running Experience (months)", 0, 240, 24)
+        weekly_mileage_km = st.slider("Weekly Mileage (km)", 0, 150, 40)
+
+    with col2:
+        injury_count = st.slider("Injuries this training cycle", 0, 10, 0)
+        injury_severity = st.selectbox(
+            "Injury Severity",
+            options=[0, 1, 2, 3],
+            format_func=lambda x: {0: "None", 1: "Minor",
+                                    2: "Moderate", 3: "Severe"}[x]
+        )
+        course_difficulty = st.selectbox(
+            "Course Difficulty",
+            options=[1, 2, 3],
+            format_func=lambda x: {1: "Flat", 2: "Mixed", 3: "Hilly"}[x]
+        )
+
+    # --- NICE TO HAVE ---
+    with st.expander("➕ Improve your prediction (optional)"):
+        st.caption("These inputs are optional — we'll estimate them if left at 0")
+
+        col3, col4 = st.columns(2)
+
+        with col3:
+            vo2_max = st.slider("VO2 Max", 0.0, 80.0, 0.0)
+            resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 0, 100, 0)
+            recovery_score = st.slider("Recovery Score (1-10)", 0.0, 10.0, 0.0)
+            nutrition_score = st.slider("Nutrition Score (1-10)", 0.0, 10.0, 0.0)
+
+        with col4:
+            previous_marathon_count = st.slider("Previous Marathons", 0, 20, 0)
+            run_club_attendance = st.slider("Run Club Attendance (%)", 0, 100, 0)
+            marathon_weather = st.selectbox(
+                "Race Day Weather",
+                options=["Neutral", "Cold", "Hot", "Rainy", "Windy"]
+            )
+
+    # ============================================================
+    # SECTION 2 — IMPUTATION
+    # ============================================================
+    def impute_features(user_input: dict, marathon_weather: str) -> dict:
+
+        # Median imputation — health metrics
+        for col, median in FEATURE_MEDIANS.items():
+            if user_input.get(col, 0) == 0:
+                user_input[col] = median
+
+        # Zero imputation — count/behavioural
+        user_input['previous_marathon_count'] = user_input.get('previous_marathon_count', 0)
+        user_input['run_club_attendance_rate'] = user_input.get('run_club_attendance_rate', 0)
+
+        # Weather OHE
+        user_input['marathon_weather_Cold']  = 1 if marathon_weather == 'Cold'  else 0
+        user_input['marathon_weather_Hot']   = 1 if marathon_weather == 'Hot'   else 0
+        user_input['marathon_weather_Rainy'] = 1 if marathon_weather == 'Rainy' else 0
+        user_input['marathon_weather_Windy'] = 1 if marathon_weather == 'Windy' else 0
+
+        return user_input
+
+    # Build feature vector
+    user_input = {
+        'age':                        age,
+        'running_experience_months':  running_experience_months,
+        'weekly_mileage_km':          weekly_mileage_km,
+        'injury_count':               injury_count,
+        'injury_severity':            injury_severity,
+        'course_difficulty':          course_difficulty,
+        'vo2_max':                    vo2_max,
+        'resting_heart_rate_bpm':     resting_heart_rate,
+        'recovery_score':             recovery_score,
+        'nutrition_score':            nutrition_score,
+        'previous_marathon_count':    previous_marathon_count,
+        'run_club_attendance_rate':   run_club_attendance,
+    }
+
+    feature_vector = impute_features(user_input, marathon_weather)
 
 # ============================================================
 # SECTION 3 — API CALL + PREDICTION
 # ============================================================
+
+missing_fields = []
+
+if age == 0:
+    missing_fields.append("Age")
+if running_experience_months == 0:
+    missing_fields.append("Running Experience")
+if weekly_mileage_km == 0:
+    missing_fields.append("Weekly Mileage")
+
 st.markdown("---")
 
 if st.button("🏁 Predict My Finish Time"):
 
-    with st.spinner("Calculating..."):
-        st.write(feature_vector)
-        response = requests.post(url, json=feature_vector)
-
-    if response.status_code == 200:
-        result = response.json()
-        prediction = result.get("predicted_finish_time", None)
-
-        if prediction is not None:
-            hours   = int(prediction // 60)
-            minutes = int(prediction % 60)
-
-            # ============================================================
-            # SECTION 4 — DISPLAY (teammate builds visualisation here)
-            # ============================================================
-            st.markdown("---")
-            st.metric(
-                label="Predicted Finish Time",
-                value=f"{hours}h {minutes:02d}min"
-            )
-
-            # TODO: SHAP waterfall chart
-            st.info("📊 Feature breakdown — coming soon")
+    if missing_fields:
+        st.warning(f"⚠️ Please complete: {', '.join(missing_fields)}")
 
     else:
-        st.error(f"API error: {response.status_code}")
+        with st.spinner("Calculating..."):
+            st.write(feature_vector)
+            response = requests.post(url, json=feature_vector)
 
-    # Debug — remove before Demo Day
-    with st.expander("🔍 Debug — Feature Vector"):
-        st.json(feature_vector)
+        if response.status_code == 200:
+            result = response.json()
+            prediction = result.get("predicted_finish_time", None)
+
+            if prediction is not None:
+                hours = int(prediction // 60)
+                minutes = int(prediction % 60)
+
+                st.markdown("---")
+                st.metric(
+                    label="Predicted Finish Time",
+                    value=f"{hours}h {minutes:02d}min"
+                )
+
+                st.info("📊 Feature breakdown — coming soon")
+
+        else:
+            st.error(f"API error: {response.status_code}")
+
+        with st.expander("🔍 Debug — Feature Vector"):
+            st.json(feature_vector)
