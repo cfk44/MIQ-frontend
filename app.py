@@ -16,7 +16,7 @@ else:
 # Add a '/' at the end if it's not there
 BASE_URI = BASE_URI if BASE_URI.endswith('/') else BASE_URI + '/'
 # Define the url to be used by requests.get to get a prediction (adapt if needed)
-url = BASE_URI + 'predict'
+url_base = BASE_URI + 'predict'
 
 #Page setup
 st.set_page_config(page_title="MarathonIQ", layout="wide")
@@ -27,7 +27,7 @@ with open('.streamlit/style.css') as f:
 
 # Just displaying the source for the API. Remove this in your final version.
 
-st.markdown(f"Working with {url}")
+st.markdown(f"Working with {url_base}")
 
 #st.markdown("Now, the rest is up to you. Start creating your page.")
 
@@ -60,7 +60,7 @@ st.header("Your Training Profile")
 level = st.radio("", ["🌞 First Marathon", "🏆 Already Ran a Marathon"], horizontal=True)
 
 if level == "🌞 First Marathon":
-    #url = url_base + '/expert'
+    url = url_base + '/general'
     # --- MUST HAVE ---
     st.subheader("Required")
     col1, col2 = st.columns(2)
@@ -91,10 +91,9 @@ if level == "🌞 First Marathon":
         col3, col4 = st.columns(2)
 
         with col3:
-            vo2_max = st.slider("VO2 Max", min_value=0, max_value=80, value=0, step=1)
+            vo2_max = st.slider("VO2 Max", 0.0, 80.0, 0.0)
             resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 0, 100, 0)
             recovery_score = st.slider("Recovery Score (1-10)", 0.0, 10.0, 0.0)
-            nutrition_score = st.slider("Nutrition Score (1-10)", 0.0, 10.0, 0.0)
 
         with col4:
             previous_marathon_count = st.slider("Previous Marathons", 0, 20, 0)
@@ -115,7 +114,6 @@ if level == "🌞 First Marathon":
         'vo2_max':                    vo2_max,
         'resting_heart_rate_bpm':     resting_heart_rate,
         'recovery_score':             recovery_score,
-        'nutrition_score':            nutrition_score,
         'previous_marathon_count':    previous_marathon_count,
         'run_club_attendance_rate':   run_club_attendance,
         'marathon_weather_Cold':      1 if marathon_weather == 'Cold'  else 0,
@@ -131,7 +129,7 @@ if level == "🌞 First Marathon":
 # ============================================================
 
 else:
-    #url = url_base + '/expert'
+    url = url_base + '/expert'
     # --- MUST HAVE ---
     st.subheader("Required - add personal best")
     col1, col2 = st.columns(2)
@@ -140,6 +138,11 @@ else:
         age = st.slider("Age", 18, 75, 35)
         running_experience_months = st.slider("Running Experience (months)", 0, 240, 24)
         weekly_mileage_km = st.slider("Weekly Mileage (km)", 0, 150, 40)
+        personal_best = st.time_input("Personal Best", value=None)
+        if personal_best is not None:
+            personal_best_minutes = personal_best.hour * 60 + personal_best.minute
+        else:
+            personal_best_minutes = None
 
     with col2:
         injury_count = st.slider("Injuries this training cycle", 0, 10, 0)
@@ -165,7 +168,6 @@ else:
             vo2_max = st.slider("VO2 Max", min_value=0, max_value=80, value=0, step=1)
             resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 0, 100, 0)
             recovery_score = st.slider("Recovery Score (1-10)", 0.0, 10.0, 0.0)
-            nutrition_score = st.slider("Nutrition Score (1-10)", 0.0, 10.0, 0.0)
 
         with col4:
             previous_marathon_count = st.slider("Previous Marathons", 0, 20, 0)
@@ -180,13 +182,13 @@ else:
         'age':                        age,
         'running_experience_months':  running_experience_months,
         'weekly_mileage_km':          weekly_mileage_km,
+        'personal_best_minutes':      personal_best_minutes,
         'injury_count':               injury_count,
         'injury_severity':            injury_severity,
         'course_difficulty':          course_difficulty,
         'vo2_max':                    vo2_max,
         'resting_heart_rate_bpm':     resting_heart_rate,
         'recovery_score':             recovery_score,
-        'nutrition_score':            nutrition_score,
         'previous_marathon_count':    previous_marathon_count,
         'run_club_attendance_rate':   run_club_attendance,
         'marathon_weather_Cold':      1 if marathon_weather == 'Cold'  else 0,
@@ -209,6 +211,9 @@ if running_experience_months == 0:
     missing_fields.append("Running Experience")
 if weekly_mileage_km == 0:
     missing_fields.append("Weekly Mileage")
+if level == "🏆 Already Ran a Marathon":
+    if personal_best_minutes is None or personal_best_minutes == 0:
+        missing_fields.append("Personal Best")
 
 st.markdown("---")
 
