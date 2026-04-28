@@ -1,5 +1,6 @@
 import requests
 import os
+import random
 import streamlit as st
 from pprint import  pprint
 
@@ -27,7 +28,7 @@ with open('.streamlit/style.css') as f:
 
 # Just displaying the source for the API. Remove this in your final version.
 
-st.markdown(f"Working with {url_base}")
+#st.markdown(f"Working with {url_base}")
 
 #st.markdown("Now, the rest is up to you. Start creating your page.")
 
@@ -91,9 +92,9 @@ if level == "🌞 First Marathon":
         col3, col4 = st.columns(2)
 
         with col3:
-            vo2_max = st.slider("VO2 Max", 0.0, 80.0, 0.0)
-            resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 0, 100, 0)
-            recovery_score = st.slider("Recovery Score (1-10)", 0.0, 10.0, 0.0)
+            vo2_max = st.slider("VO2 Max", 30, 80)
+            resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 30, 100, 0)
+            recovery_score = st.slider("Recovery Score (1-10)", 0, 10, 0)
 
         with col4:
             previous_marathon_count = st.slider("Previous Marathons", 0, 20, 0)
@@ -131,16 +132,18 @@ if level == "🌞 First Marathon":
 else:
     url = url_base + '/expert'
     # --- MUST HAVE ---
-    st.subheader("Required - add personal best")
+    st.subheader("Required")
     col1, col2 = st.columns(2)
 
     with col1:
         age = st.slider("Age", 18, 75, 35)
         running_experience_months = st.slider("Running Experience (months)", 0, 240, 24)
         weekly_mileage_km = st.slider("Weekly Mileage (km)", 0, 150, 40)
-        personal_best = st.time_input("Personal Best", value=None)
-        if personal_best is not None:
-            personal_best_minutes = personal_best.hour * 60 + personal_best.minute
+        personal_best = st.text_input("Personal Best (HH:MM:SS)", value="00:00:00", max_chars=8)
+        st.caption("ex: 03:45:30")
+        if personal_best and len(personal_best) == 8:
+            parts = personal_best.split(":")
+            personal_best_minutes = int(parts[0]) * 60 + int(parts[1]) + round(int(parts[2]) / 60)
         else:
             personal_best_minutes = None
 
@@ -165,9 +168,9 @@ else:
         col3, col4 = st.columns(2)
 
         with col3:
-            vo2_max = st.slider("VO2 Max", min_value=0, max_value=80, value=0, step=1)
-            resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 0, 100, 0)
-            recovery_score = st.slider("Recovery Score (1-10)", 0.0, 10.0, 0.0)
+            vo2_max = st.slider("VO2 Max", 30, 80, 0)
+            resting_heart_rate = st.slider("Resting Heart Rate (bpm)", 30, 100, 0)
+            recovery_score = st.slider("Recovery Score (1-10)", 0, 10, 0)
 
         with col4:
             previous_marathon_count = st.slider("Previous Marathons", 0, 20, 0)
@@ -224,7 +227,7 @@ if st.button("🏁 Predict My Finish Time"):
 
     else:
         with st.spinner("Calculating..."):
-            st.write(feature_vector)
+            #st.write(feature_vector)
             response = requests.post(url, json=feature_vector)
 
         if response.status_code == 200:
@@ -235,13 +238,29 @@ if st.button("🏁 Predict My Finish Time"):
                 hours = int(prediction // 60)
                 minutes = int(prediction % 60)
 
+                pace = prediction / 42.195
+
+                pace_min = int(pace)
+                pace_sec = int(round((pace - pace_min) * 60))
+
+                if pace_sec == 60:
+                    pace_min += 1
+                    pace_sec = 0
+
                 st.markdown("---")
                 st.metric(
                     label="Predicted Finish Time",
-                    value=f"{hours}h {minutes:02d}min"
+                    value=f"{hours}h {minutes:02d}min ➡️ {pace_min}:{pace_sec:02d} min/km"
                 )
 
                 st.info("📊 Feature breakdown — coming soon")
+
+                gif = random.choice([
+                    "media/forest.gif",
+                    "media/rocket.gif",
+                    "media/wonderwoman.gif"
+                ])
+                st.image(gif)
 
         else:
             st.error(f"API error: {response.status_code}")
