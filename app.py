@@ -1,7 +1,12 @@
 import requests
 import os
+import re
+import shap
 import random
+import matplotlib.pyplot as plt
+import pandas as pd
 import streamlit as st
+import numpy as np
 from pprint import  pprint
 
 # Define the base URI of the API
@@ -43,10 +48,10 @@ st.markdown("""
         text-align: center;
     ">
         <h1 style="color: black; margin-bottom: 0.5rem;">
-            🏃 MarathonIQ 🏃
+            🏃🏻‍♂️‍➡️ MarathonIQ 🏃🏾‍♀️‍➡️
         </h1>
         <p style="color: black; font-size: 1.2rem;">
-            Enter your training data. Get your predicted finish time.
+            Tell us about your training and we'll predict your finish time, plus show which factors drive it most.
         </p>
     </div>
 """, unsafe_allow_html=True)
@@ -99,10 +104,10 @@ if level == "🌞 First Marathon":
                 "Recovery Score - Body Battery - Readiness Score - Nightly Recharge",
                 options=[0, 3, 6, 7, 9],
                 format_func=lambda x: {0: "I don't track this",
-                                       3: "Low — fatigued, body clearly needs rest",
-                                       6: "Moderate — somewhat tired, lighter day advised",
-                                       7: "Good — well rested, moderate effort is fine",
-                                       9: "High — fully recovered, ready to push hard"}[x]
+                                       3: "Low — fatigued",
+                                       6: "Moderate — somewhat tired",
+                                       7: "Good — well rested",
+                                       9: "High — fully recovered"}[x]
             )
 
             run_club_attendance = st.selectbox(
@@ -190,10 +195,10 @@ else:
                 "Recovery Score - Body Battery - Readiness Score - Nightly Recharge",
                 options=[0, 3, 6, 7, 9],
                 format_func=lambda x: {0: "I don't track this",
-                                       3: "Low — fatigued, body clearly needs rest",
-                                       6: "Moderate — somewhat tired, lighter day advised",
-                                       7: "Good — well rested, moderate effort is fine",
-                                       9: "High — fully recovered, ready to push hard"}[x]
+                                       3: "Low — fatigued",
+                                       6: "Moderate — somewhat tired",
+                                       7: "Good — well rested",
+                                       9: "High — fully recovered"}[x]
             )
             run_club_attendance = st.selectbox(
                 "Run Club Attendance",
@@ -260,6 +265,8 @@ if st.button("🏁 Predict My Finish Time"):
         if response.status_code == 200:
             result = response.json()
             prediction = result.get("predicted_finish_time", None)
+            shap_values = result.get('shap_values', {})
+            base_value = result.get('base_value', 0)
 
             if prediction is not None:
 
@@ -280,17 +287,81 @@ if st.button("🏁 Predict My Finish Time"):
                     label="Predicted Finish Time",
                     value=f"{hours}h {minutes:02d}min ➡️ {pace_min}:{pace_sec:02d} min/km"
                 )
-                st.caption("Typical variance: +/- 15-20 min")
-                st.caption("Based on a synthetic dataset of 80,000 runners.")
 
-                st.info("📊 Feature breakdown — coming soon")
+                if shap_values:
+                    st.subheader("What's driving your time")
+
+                    # Feature name mapping → display labels
+                    label_map = {
+                        'age': 'Age',
+                        'running_experience_months': 'Running Experience (months)',
+                        'weekly_mileage_km': 'Weekly Mileage (km)',
+                        'injury_count': 'Injuries',
+                        'injury_severity': 'Injury Severity',
+                        'course_difficulty': 'Course Difficulty',
+                        'vo2_max': 'VO2 Max',
+                        'resting_heart_rate_bpm': 'Resting HR (bpm)',
+                        'recovery_score': 'Recovery Score',
+                        'previous_marathon_count': 'Previous Marathons',
+                        'run_club_attendance_rate': 'Run Club Attendance',
+                        'marathon_weather_Cold': 'Cold Weather',
+                        'marathon_weather_Hot': 'Hot Weather',
+                        'marathon_weather_Rainy': 'Rainy Weather',
+                        'marathon_weather_Windy': 'Windy Weather',
+                        'personal_best_minutes': 'Personal Best (min)',
+                    }
+
+                    feature_names = list(shap_values.keys())
+                    shap_array = np.array(list(shap_values.values()))
+                    feature_values = [feature_vector.get(name, 0) for name in feature_names]
+                    display_names = [label_map.get(name, name) for name in feature_names]
+
+                    explanation = shap.Explanation(
+                        values=shap_array,
+                        base_values=base_value,
+                        data=feature_values,
+                        feature_names=display_names
+                    )
+
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    shap.plots.waterfall(explanation, max_display=10, show=False)
+                    ax = plt.gca()
+                    ax.set_xlabel("Time (min)", labelpad=25)
+
+                    import re
+                    for text in fig.findobj(plt.Text):
+                        actual = text.get_text()
+                        if ('f(x)' in actual
+                            or 'E[f(X)]' in actual
+                            or re.search(r'=\s*[\d\.]+', actual)):
+                            text.set_visible(False)
+
+                    ax.annotate(f"Your time = {prediction:.1f}",
+                                xy=(prediction, 1), xycoords=('data', 'axes fraction'),
+                                xytext=(0, 40), textcoords='offset points',
+                                ha='center', fontsize=10, color='gray')
+                    ax.annotate(f"Avg runner = {base_value:.1f}",
+                                xy=(base_value, 0), xycoords=('data', 'axes fraction'),
+                                xytext=(0, -40), textcoords='offset points',
+                                ha='center', fontsize=10, color='gray')
+
+                    st.pyplot(fig, bbox_inches='tight')
+                    plt.close()
+
+                    st.caption("*Based on a synthetic dataset of 80,000 simulated runners, informed by sports medicine assumptions. Predictions can deviate significantly from actual finish time depending on the inputs provided. Not a substitute for structured training or professional coaching.*")
+                    st.caption("*For VO2 Max, Resting HR, and Recovery Score, the median values of the dataset are assumed if not provided (Median VO2 Max = 45, Resting HR = 68, Recovery Score = Good). These contribute to the prediction even when shown as 0 in your input.*")
+
+
 
                 gif = random.choice([
                     "media/forest.gif",
                     "media/rocket.gif",
                     "media/wonderwoman.gif"
                 ])
-                st.image(gif)
+                st.markdown(
+                    f'<div style="text-align: center;"><img src="data:image/gif;base64,{__import__("base64").b64encode(open(gif, "rb").read()).decode()}" width="400"></div>',
+                    unsafe_allow_html=True
+                )
 
         else:
             st.error(f"API error: {response.status_code}")

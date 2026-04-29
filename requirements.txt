@@ -1,15 +1,7 @@
-# This should normally be a relatively short requirements.txt
-
-# If you think of adding scikit-learn or tensorflow here, think again!
-# This is the front-end. Heavy calculations go in the back-end, no?
-
-# Sreamlit and extensions
-streamlit
-requests
-
-
-# If you want to display datasets, or if your API returns you dataframes,
-# you might need to add some extra stuff hereunder, e.g. pandas
-
-# Data science
-# pandas
+# Versions need to be fixed
+matplotlib==3.10.8
+numpy==1.26.4
+pandas==2.2.3
+requests==2.33.1
+shap==0.45.1
+streamlit==1.56.0
