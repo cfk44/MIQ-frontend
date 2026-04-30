@@ -43,7 +43,7 @@ with open('.streamlit/style.css') as f:
 
 # Logo
 st.markdown(
-    f'<div style="text-align: center;"><img src="data:image/png;base64,{__import__("base64").b64encode(open("media/MIQ-white.png", "rb").read()).decode()}" width="300"></div>',
+    f'<div style="text-align: center;"><img src="data:image/png;base64,{__import__("base64").b64encode(open("media/MIQ-transparent.png", "rb").read()).decode()}" width="300"></div>',
     unsafe_allow_html=True
 )
 # Tagline below logo
