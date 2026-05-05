@@ -26,8 +26,8 @@ test_structure:
 streamlit: streamlit_local
 
 streamlit_local:
-	-@API_URI=local_api_uri streamlit run app.py
-
+	-@BASE_URI=http://127.0.0.1:8000 streamlit run app.py
+# CHANGED FROM API_URI
 streamlit_local_docker:
 	-@API_URI=local_docker_uri streamlit run app.py
 
