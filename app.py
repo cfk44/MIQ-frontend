@@ -4,6 +4,7 @@ import re
 import shap
 import random
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgb
 import pandas as pd
 import streamlit as st
 import numpy as np
@@ -41,11 +42,29 @@ with open('.streamlit/style.css') as f:
 # ============================================================
 
 
-# Logo
-st.markdown(
-    f'<div style="text-align: center;"><img src="data:image/png;base64,{__import__("base64").b64encode(open("media/MIQ-transparent.png", "rb").read()).decode()}" width="300"></div>',
-    unsafe_allow_html=True
-)
+# Wordmark
+st.markdown("""
+    <div style="text-align: center; padding: 2rem 0 0.5rem 0;">
+        <div style="
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 4rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            color: #0A0A0A;
+            line-height: 1;
+        ">MIQ</div>
+        <div style="
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 400;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            color: #6A6A6A;
+            margin-top: 0.5rem;
+        ">Marathon · IQ</div>
+    </div>
+""", unsafe_allow_html=True)
+
 # Tagline below logo
 st.markdown("""
     <div style="text-align: center; padding: 0.5rem 0 1rem 0;">
@@ -65,9 +84,9 @@ st.markdown("---")
 # ============================================================
 
 st.header("Your Profile")
-level = st.radio("", ["🌞 First Marathon", "🏆 Already Ran a Marathon"], horizontal=True)
+level = st.radio("", ["Beginner", "Expert"], horizontal=True)
 
-if level == "🌞 First Marathon":
+if level == "Beginner":
     url = url_base + '/general'
     # --- MUST HAVE ---
     st.subheader("Tell us about your training")
@@ -92,7 +111,7 @@ if level == "🌞 First Marathon":
         )
 
     # --- NICE TO HAVE ---
-    with st.expander("➕ Improve your prediction (optional)"):
+    with st.expander("+ Improve your prediction (optional)"):
         st.caption("Optional inputs — if not provided, values will be automatically set to 0 or to the median of our dataset.")
 
         col3, col4 = st.columns(2)
@@ -104,7 +123,7 @@ if level == "🌞 First Marathon":
 
         with col4:
             recovery_score = st.selectbox(
-                "Recovery Score - Body Battery - Readiness Score - Nightly Recharge",
+                "Recovery Score - Nightly Recharge",
                 options=[0, 3, 6, 7, 9],
                 format_func=lambda x: {0: "I don't track this",
                                        3: "Low — fatigued",
@@ -183,7 +202,7 @@ else:
         )
 
     # --- NICE TO HAVE ---
-    with st.expander("➕ Improve your prediction (optional)"):
+    with st.expander("Improve your prediction (optional)"):
         st.caption("Optional inputs — if not provided, values will be automatically set to 0 or to the median of our dataset.")
 
         col3, col4 = st.columns(2)
@@ -195,7 +214,7 @@ else:
 
         with col4:
             recovery_score = st.selectbox(
-                "Recovery Score - Body Battery - Readiness Score - Nightly Recharge",
+                "Recovery Score - Nightly Recharge",
                 options=[0, 3, 6, 7, 9],
                 format_func=lambda x: {0: "I don't track this",
                                        3: "Low — fatigued",
@@ -249,13 +268,13 @@ if age == 0:
     missing_fields.append("Age")
 if running_experience_months == 0:
     missing_fields.append("Running Experience")
-if level == "🏆 Already Ran a Marathon":
+if level == "Expert":
     if personal_best_minutes is None or personal_best_minutes == 0:
         missing_fields.append("Personal Best")
 if weekly_mileage_km < 10:
     missing_fields.append("Weekly Mileage (minimum 10km/week)")
 
-if st.button("🏁 Predict My Finish Time"):
+if st.button("Predict My Finish Time"):
 
     if missing_fields:
         st.warning(f"⚠️ Please complete: {', '.join(missing_fields)}")
@@ -288,7 +307,7 @@ if st.button("🏁 Predict My Finish Time"):
                 st.markdown("---")
                 st.metric(
                     label="Predicted Finish Time",
-                    value=f"{hours}h {minutes:02d}min ➡️ {pace_min}:{pace_sec:02d} min/km"
+                    value=f"{hours}h {minutes:02d}min -> {pace_min}:{pace_sec:02d} min/km"
                 )
 
                 if shap_values:
@@ -326,8 +345,25 @@ if st.button("🏁 Predict My Finish Time"):
                         feature_names=display_names
                     )
 
+
+                    # Design-Upgrade
+                    plt.rcParams.update({
+                        'font.family': 'monospace',
+                        'font.size': 10,
+                        'axes.edgecolor': '#B8B8B0',
+                        'axes.linewidth': 0.5,
+                        'axes.labelcolor': '#0A0A0A',
+                        'xtick.color': '#6A6A6A',
+                        'ytick.color': '#0A0A0A',
+                        'figure.facecolor': '#FAFAF7',
+                        'axes.facecolor': '#FAFAF7',
+                    })
+
                     fig, ax = plt.subplots(figsize=(10, 6))
                     shap.plots.waterfall(explanation, max_display=10, show=False)
+                    all_patches = []
+                    for axis in fig.axes:
+                        all_patches.extend(axis.patches)
                     ax = plt.gca()
                     ax.set_xlabel("Time (min)", labelpad=25)
 
@@ -338,6 +374,40 @@ if st.button("🏁 Predict My Finish Time"):
                             or 'E[f(X)]' in actual
                             or re.search(r'=\s*[\d\.]+', actual)):
                             text.set_visible(False)
+
+                    # Recolor ALL patches across all axes
+                    for axis in fig.axes:
+                        for patch in axis.patches:
+                            face = patch.get_facecolor()
+                            # Red family (positive SHAP)
+                            if face[0] > 0.5 and face[1] < 0.3:
+                                patch.set_facecolor('#6B1B1B')
+                                patch.set_edgecolor('#6B1B1B')
+                            # Blue family (negative SHAP)
+                            elif face[2] > 0.5 and face[0] < 0.3:
+                                patch.set_facecolor('#004225')
+                                patch.set_edgecolor('#004225')
+
+                    # Recolor outside-bar labels only (preserve white labels inside bars)
+                    for axis in fig.axes:
+                        for text in axis.texts:
+                            txt = text.get_text()
+
+                            # Convert any color format to RGB tuple
+                            try:
+                                r, g, b = to_rgb(text.get_color())
+                                # Skip white/cream — these are inside-bar labels
+                                if r > 0.85 and g > 0.85 and b > 0.85:
+                                    continue
+                            except (ValueError, TypeError):
+                                continue
+
+                            # Recolor outside labels by sign
+                            if txt.startswith('+'):
+                                text.set_color('#6B1B1B')
+                            elif txt.startswith('−') or txt.startswith('-'):
+                                text.set_color('#004225')
+
 
                     ax.annotate(f"Your time = {prediction:.1f}",
                                 xy=(prediction, 1), xycoords=('data', 'axes fraction'),
@@ -353,18 +423,6 @@ if st.button("🏁 Predict My Finish Time"):
 
                     st.caption("*Based on a synthetic dataset of 80,000 simulated runners, informed by sports medicine assumptions. Predictions can deviate significantly from actual finish time depending on the inputs provided. Not a substitute for structured training or professional coaching.*")
                     st.caption("*For VO2 Max, Resting HR, and Recovery Score, the median values of the dataset are assumed if not provided (Median VO2 Max = 45, Resting HR = 68, Recovery Score = Good). These contribute to the prediction even when shown as 0 in your input.*")
-
-
-
-                gif = random.choice([
-                    "media/forest.gif",
-                    "media/rocket.gif",
-                    "media/wonderwoman.gif"
-                ])
-                st.markdown(
-                    f'<div style="text-align: center;"><img src="data:image/gif;base64,{__import__("base64").b64encode(open(gif, "rb").read()).decode()}" width="400"></div>',
-                    unsafe_allow_html=True
-                )
 
         else:
             st.error(f"API error: {response.status_code}")
