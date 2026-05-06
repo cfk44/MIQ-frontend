@@ -25,11 +25,9 @@ test_structure:
 
 streamlit: streamlit_local
 
+# Run frontend against local backend (uvicorn on port 8000)
 streamlit_local:
-	-@BASE_URI=http://127.0.0.1:8000 streamlit run app.py
-# CHANGED FROM API_URI
-streamlit_local_docker:
-	-@API_URI=local_docker_uri streamlit run app.py
+	-@export API_URI=local_api_uri && streamlit run app.py
 
 streamlit_cloud:
-	-@API_URI=cloud_api_uri streamlit run app.py
+	-@export API_URI=cloud_api_uri && streamlit run app.py

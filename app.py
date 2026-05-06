@@ -1,76 +1,96 @@
+import streamlit as st
+
+# ============================================================
+# PAGE CONFIG — must be first Streamlit call
+# ============================================================
+st.set_page_config(page_title="MarathonIQ", layout="wide")
+
 import requests
 import os
 import re
 import shap
-import random
 import matplotlib.pyplot as plt
-import pandas as pd
-import streamlit as st
+from matplotlib.colors import to_rgb
 import numpy as np
-from pprint import  pprint
 
-# Define the base URI of the API
-#   - Potential sources are in `.streamlit/secrets.toml` or in the Secrets section
-#     on Streamlit Cloud
-#   - The source selected is based on the shell variable passend when launching streamlit
-#    (shortcuts are included in Makefile). By default it takes the cloud API url
+# ============================================================
+# BACKEND URL SETUP
+# ============================================================
+# Resolution order (first match wins):
+#   1. API_URI env var → key name to look up in .streamlit/secrets.toml
+#                        (used by Makefile targets: streamlit_local, streamlit_cloud)
+#   2. BASE_URI env var → explicit URL override
+#                        (used for ad-hoc local testing via shell)
+#   3. Default fallback → cloud_api_uri from secrets
+#                        (used by deployed Streamlit Cloud app)
 
-if 'BASE_URI' in os.environ:
+if 'API_URI' in os.environ:
+    BASE_URI = st.secrets[os.environ['API_URI']]
+elif 'BASE_URI' in os.environ:
     BASE_URI = os.environ.get('BASE_URI')
 else:
     BASE_URI = st.secrets['cloud_api_uri']
-# Add a '/' at the end if it's not there
+
+# Normalize trailing slash and build prediction endpoint
 BASE_URI = BASE_URI if BASE_URI.endswith('/') else BASE_URI + '/'
-# Define the url to be used by requests.get to get a prediction (adapt if needed)
 url_base = BASE_URI + 'predict'
 
-#Page setup
-st.set_page_config(page_title="MarathonIQ", layout="wide")
-
+# ============================================================
+# STYLES
+# ============================================================
 with open('.streamlit/style.css') as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
-# Just displaying the source for the API. Remove this in your final version.
-
-#st.markdown(f"Working with {url_base}")
-
-#st.markdown("Now, the rest is up to you. Start creating your page.")
-
 # ============================================================
-# PAGE SETUP
+# HEADER
 # ============================================================
+st.markdown("""
+    <div style="text-align: center; padding: 2rem 0 0.5rem 0;">
+        <div style="
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 4rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            color: #0A0A0A;
+            line-height: 1;
+        ">MIQ</div>
+        <div style="
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 400;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            color: #6A6A6A;
+            margin-top: 0.5rem;
+        ">Marathon · IQ</div>
+    </div>
+""", unsafe_allow_html=True)
 
-
-# Logo
-st.markdown(
-    f'<div style="text-align: center;"><img src="data:image/png;base64,{__import__("base64").b64encode(open("media/MIQ-transparent.png", "rb").read()).decode()}" width="300"></div>',
-    unsafe_allow_html=True
-)
-# Tagline below logo
 st.markdown("""
     <div style="text-align: center; padding: 0.5rem 0 1rem 0;">
         <p style="color: black; font-size: 1.2rem;">
-            Tell us about your training and we'll predict your finish time, plus show which factors drive it most.
+            Your Intelligent Quartermaster for running.<br>
+            Brief MIQ on your marathon mission — get your predicted finish time and actionable insights on the factors driving it.
         </p>
     </div>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
 
-
-
-
 # ============================================================
 # SECTION 1 — USER INPUTS
 # ============================================================
 
-st.header("Your Profile")
-level = st.radio("", ["🌞 First Marathon", "🏆 Already Ran a Marathon"], horizontal=True)
+st.header("Mission Profile")
 
-if level == "🌞 First Marathon":
+# Default — overridden by radio below (fixes Pylance scope warning)
+level = "Beginner"
+level = st.radio("Experience Level", ["Beginner", "Expert"], horizontal=True, label_visibility="collapsed")
+
+if level == "Beginner":
     url = url_base + '/general'
-    # --- MUST HAVE ---
-    st.subheader("Tell us about your training")
+
+    st.subheader("Training Briefing")
     col1, col2 = st.columns(2)
     with col1:
         age = st.number_input("Age", 18, 100, 35)
@@ -82,8 +102,7 @@ if level == "🌞 First Marathon":
         injury_severity = st.selectbox(
             "Injury Severity",
             options=[0, 1, 2, 3],
-            format_func=lambda x: {0: "None", 1: "Minor",
-                                    2: "Moderate", 3: "Severe"}[x]
+            format_func=lambda x: {0: "None", 1: "Minor", 2: "Moderate", 3: "Severe"}[x]
         )
         course_difficulty = st.selectbox(
             "Course Difficulty",
@@ -91,10 +110,8 @@ if level == "🌞 First Marathon":
             format_func=lambda x: {1: "Flat", 2: "Mixed", 3: "Hilly"}[x]
         )
 
-    # --- NICE TO HAVE ---
-    with st.expander("➕ Improve your prediction (optional)"):
+    with st.expander("+ Expand Your Briefing (optional)"):
         st.caption("Optional inputs — if not provided, values will be automatically set to 0 or to the median of our dataset.")
-
         col3, col4 = st.columns(2)
 
         with col3:
@@ -104,29 +121,31 @@ if level == "🌞 First Marathon":
 
         with col4:
             recovery_score = st.selectbox(
-                "Recovery Score - Body Battery - Readiness Score - Nightly Recharge",
+                "Recovery Score - Nightly Recharge",
                 options=[0, 3, 6, 7, 9],
-                format_func=lambda x: {0: "I don't track this",
-                                       3: "Low — fatigued",
-                                       6: "Moderate — somewhat tired",
-                                       7: "Good — well rested",
-                                       9: "High — fully recovered, ready to push hard"}[x]
+                format_func=lambda x: {
+                    0: "I don't track this",
+                    3: "Low — fatigued",
+                    6: "Moderate — somewhat tired",
+                    7: "Good — well rested",
+                    9: "High — fully recovered, ready to push hard"
+                }[x]
             )
-
             run_club_attendance = st.selectbox(
                 "Run Club Attendance",
                 options=[12, 37, 62, 87],
-                format_func=lambda x: {12: "Never",
-                                       37: "Rarely — once a month or less",
-                                       62: "Sometimes — a few times a month",
-                                       87: "Often — weekly or more"}[x]
+                format_func=lambda x: {
+                    12: "Never",
+                    37: "Rarely — once a month or less",
+                    62: "Sometimes — a few times a month",
+                    87: "Often — weekly or more"
+                }[x]
             )
             marathon_weather = st.selectbox(
                 "Race Day Weather",
                 options=["Neutral", "Cold", "Hot", "Rainy", "Windy"]
             )
 
-    # Build feature vector
     feature_vector = {
         'age':                        age,
         'running_experience_months':  running_experience_months,
@@ -145,16 +164,13 @@ if level == "🌞 First Marathon":
         'marathon_weather_Windy':     1 if marathon_weather == 'Windy' else 0,
     }
 
-    #response = requests.get(url, params=feature_vector)
-
 # ============================================================
-# DOING THE SAME FOR THE EXPERT MODEL
+# EXPERT MODE
 # ============================================================
-
 else:
     url = url_base + '/expert'
-    # --- MUST HAVE ---
-    st.subheader("Tell us about your training")
+
+    st.subheader("Training Briefing")
     col1, col2 = st.columns(2)
     with col1:
         age = st.number_input("Age", 18, 100, 35)
@@ -173,8 +189,7 @@ else:
         injury_severity = st.selectbox(
             "Injury Severity",
             options=[0, 1, 2, 3],
-            format_func=lambda x: {0: "None", 1: "Minor",
-                                    2: "Moderate", 3: "Severe"}[x]
+            format_func=lambda x: {0: "None", 1: "Minor", 2: "Moderate", 3: "Severe"}[x]
         )
         course_difficulty = st.selectbox(
             "Course Difficulty",
@@ -182,10 +197,8 @@ else:
             format_func=lambda x: {1: "Flat", 2: "Mixed", 3: "Hilly"}[x]
         )
 
-    # --- NICE TO HAVE ---
-    with st.expander("➕ Improve your prediction (optional)"):
+    with st.expander("+ Expand Your Briefing (optional)"):
         st.caption("Optional inputs — if not provided, values will be automatically set to 0 or to the median of our dataset.")
-
         col3, col4 = st.columns(2)
 
         with col3:
@@ -195,29 +208,31 @@ else:
 
         with col4:
             recovery_score = st.selectbox(
-                "Recovery Score - Body Battery - Readiness Score - Nightly Recharge",
+                "Recovery Score - Nightly Recharge",
                 options=[0, 3, 6, 7, 9],
-                format_func=lambda x: {0: "I don't track this",
-                                       3: "Low — fatigued",
-                                       6: "Moderate — somewhat tired",
-                                       7: "Good — well rested",
-                                       9: "High — fully recovered"}[x]
+                format_func=lambda x: {
+                    0: "I don't track this",
+                    3: "Low — fatigued",
+                    6: "Moderate — somewhat tired",
+                    7: "Good — well rested",
+                    9: "High — fully recovered"
+                }[x]
             )
             run_club_attendance = st.selectbox(
                 "Run Club Attendance",
                 options=[12, 37, 62, 87],
-                format_func=lambda x: {12: "Never",
-                                       37: "Rarely — once a month or less",
-                                       62: "Sometimes — a few times a month",
-                                       87: "Often — weekly or more"}[x]
+                format_func=lambda x: {
+                    12: "Never",
+                    37: "Rarely — once a month or less",
+                    62: "Sometimes — a few times a month",
+                    87: "Often — weekly or more"
+                }[x]
             )
             marathon_weather = st.selectbox(
                 "Race Day Weather",
                 options=["Neutral", "Cold", "Hot", "Rainy", "Windy"]
             )
 
-
-    # Build feature vector
     feature_vector = {
         'age':                        age,
         'running_experience_months':  running_experience_months,
@@ -237,10 +252,8 @@ else:
         'marathon_weather_Windy':     1 if marathon_weather == 'Windy' else 0,
     }
 
-    #response = requests.get(url, params=feature_vector)
-
 # ============================================================
-# SECTION 3 — API CALL + PREDICTION
+# SECTION 2 — VALIDATION + API CALL + PREDICTION
 # ============================================================
 
 missing_fields = []
@@ -249,20 +262,19 @@ if age == 0:
     missing_fields.append("Age")
 if running_experience_months == 0:
     missing_fields.append("Running Experience")
-if level == "🏆 Already Ran a Marathon":
+if level == "Expert":
     if personal_best_minutes is None or personal_best_minutes == 0:
         missing_fields.append("Personal Best")
 if weekly_mileage_km < 10:
     missing_fields.append("Weekly Mileage (minimum 10km/week)")
 
-if st.button("🏁 Predict My Finish Time"):
+if st.button("Predict My Finish Time"):
 
     if missing_fields:
         st.warning(f"⚠️ Please complete: {', '.join(missing_fields)}")
 
     else:
-        with st.spinner("Crunching your training data..."):
-            #st.write(feature_vector)
+        with st.spinner("Analysing your mission profile..."):
             response = requests.post(url, json=feature_vector)
 
         if response.status_code == 200:
@@ -275,12 +287,9 @@ if st.button("🏁 Predict My Finish Time"):
 
                 hours = int(prediction // 60)
                 minutes = int(prediction % 60)
-
                 pace = prediction / 42.195
-
                 pace_min = int(pace)
                 pace_sec = int(round((pace - pace_min) * 60))
-
                 if pace_sec == 60:
                     pace_min += 1
                     pace_sec = 0
@@ -288,13 +297,12 @@ if st.button("🏁 Predict My Finish Time"):
                 st.markdown("---")
                 st.metric(
                     label="Predicted Finish Time",
-                    value=f"{hours}h {minutes:02d}min ➡️ {pace_min}:{pace_sec:02d} min/km"
+                    value=f"{hours}h {minutes:02d}min → {pace_min}:{pace_sec:02d} min/km"
                 )
 
                 if shap_values:
-                    st.subheader("What's driving your time")
+                    st.subheader("Factors Driving Your Time")
 
-                    # Feature name mapping → display labels
                     label_map = {
                         'age': 'Age',
                         'running_experience_months': 'Running Experience (months)',
@@ -326,18 +334,53 @@ if st.button("🏁 Predict My Finish Time"):
                         feature_names=display_names
                     )
 
+                    plt.rcParams.update({
+                        'font.family': 'monospace',
+                        'font.size': 10,
+                        'axes.edgecolor': '#B8B8B0',
+                        'axes.linewidth': 0.5,
+                        'axes.labelcolor': '#0A0A0A',
+                        'xtick.color': '#6A6A6A',
+                        'ytick.color': '#0A0A0A',
+                        'figure.facecolor': '#FAFAF7',
+                        'axes.facecolor': '#FAFAF7',
+                    })
+
                     fig, ax = plt.subplots(figsize=(10, 6))
                     shap.plots.waterfall(explanation, max_display=10, show=False)
                     ax = plt.gca()
                     ax.set_xlabel("Time (min)", labelpad=25)
 
-                    import re
                     for text in fig.findobj(plt.Text):
                         actual = text.get_text()
                         if ('f(x)' in actual
-                            or 'E[f(X)]' in actual
-                            or re.search(r'=\s*[\d\.]+', actual)):
+                                or 'E[f(X)]' in actual
+                                or re.search(r'=\s*[\d\.]+', actual)):
                             text.set_visible(False)
+
+                    for axis in fig.axes:
+                        for patch in axis.patches:
+                            face = patch.get_facecolor()
+                            if face[0] > 0.5 and face[1] < 0.3:
+                                patch.set_facecolor('#6B1B1B')
+                                patch.set_edgecolor('#6B1B1B')
+                            elif face[2] > 0.5 and face[0] < 0.3:
+                                patch.set_facecolor('#004225')
+                                patch.set_edgecolor('#004225')
+
+                    for axis in fig.axes:
+                        for text in axis.texts:
+                            txt = text.get_text()
+                            try:
+                                r, g, b = to_rgb(text.get_color())
+                                if r > 0.85 and g > 0.85 and b > 0.85:
+                                    continue
+                            except (ValueError, TypeError):
+                                continue
+                            if txt.startswith('+'):
+                                text.set_color('#6B1B1B')
+                            elif txt.startswith('−') or txt.startswith('-'):
+                                text.set_color('#004225')
 
                     ax.annotate(f"Your time = {prediction:.1f}",
                                 xy=(prediction, 1), xycoords=('data', 'axes fraction'),
@@ -351,25 +394,11 @@ if st.button("🏁 Predict My Finish Time"):
                     st.pyplot(fig, bbox_inches='tight')
                     plt.close()
 
-                    st.caption("*Based on a synthetic dataset of 80,000 simulated runners, informed by sports medicine assumptions. Predictions can deviate significantly from actual finish time depending on the inputs provided. Not a substitute for structured training or professional coaching.*")
-                    st.caption("*For VO2 Max, Resting HR, and Recovery Score, the median values of the dataset are assumed if not provided (Median VO2 Max = 45, Resting HR = 68, Recovery Score = Good). These contribute to the prediction even when shown as 0 in your input.*")
-
-
-
-                gif = random.choice([
-                    "media/forest.gif",
-                    "media/rocket.gif",
-                    "media/wonderwoman.gif"
-                ])
-                st.markdown(
-                    f'<div style="text-align: center;"><img src="data:image/gif;base64,{__import__("base64").b64encode(open(gif, "rb").read()).decode()}" width="400"></div>',
-                    unsafe_allow_html=True
-                )
+                    st.caption("*Based on a synthetic dataset of 80,000 simulated runners, informed by sports medicine assumptions. Predictions may deviate from actual finish time depending on inputs provided. Not a substitute for structured training or professional coaching.*")
+                    st.caption("*For VO2 Max, Resting HR, and Recovery Score, median dataset values are assumed if not provided (Median VO2 Max = 45, Resting HR = 68, Recovery Score = Good). These factors remain active in your analysis even when shown as 0 in your briefing.*")
 
         else:
             st.error(f"API error: {response.status_code}")
 
-        #with st.expander("🔍 Debug — Feature Vector"):
-            #st.json(feature_vector)
 else:
-    st.info("Fill in your stats above to see your prediction!")
+    st.info("Complete your briefing above to receive your prediction.")
