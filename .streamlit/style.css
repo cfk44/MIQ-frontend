@@ -240,11 +240,3 @@ hr {
     }
     h1 { font-size: 1.5rem !important; }
 }
-
-/* ── DROPDOWN POPUP FONT ─────────────────── */
-[data-baseweb="popover"],
-[data-baseweb="popover"] *,
-[data-baseweb="menu"],
-[data-baseweb="menu"] * {
-    font-family: 'Space Grotesk', sans-serif !important;
-}

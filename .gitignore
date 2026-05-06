@@ -23,7 +23,8 @@ raw_data/
 *.zip
 
 # Credentials (or files with potentially credentials inside)
-#.env
+.env
+.env*
 .credentials
 secrets.toml
 *.json
