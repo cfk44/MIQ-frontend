@@ -25,9 +25,13 @@ raw_data/
 # Credentials (or files with potentially credentials inside)
 .env
 .env*
+.envrc
 .credentials
 secrets.toml
 *.json
 
 # User defined extras
 # Complete to your desire
+media/
+pages/
+tests/
