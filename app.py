@@ -295,10 +295,17 @@ if st.button("Predict My Finish Time"):
                     pace_sec = 0
 
                 st.markdown("---")
-                st.metric(
-                    label="Predicted Finish Time",
-                    value=f"{hours}h {minutes:02d}min → {pace_min}:{pace_sec:02d} min/km"
-                )
+                col_time, col_pace = st.columns(2)
+                with col_time:
+                    st.metric(
+                        label="Predicted Finish Time",
+                        value=f"{hours}h {minutes:02d}min"
+                    )
+                with col_pace:
+                    st.metric(
+                        label="Pace",
+                        value=f"{pace_min}:{pace_sec:02d} min/km"
+                    )
 
                 if shap_values:
                     st.subheader("Factors Driving Your Time")
@@ -336,7 +343,7 @@ if st.button("Predict My Finish Time"):
 
                     plt.rcParams.update({
                         'font.family': 'monospace',
-                        'font.size': 10,
+                        'font.size': 8,
                         'axes.edgecolor': '#B8B8B0',
                         'axes.linewidth': 0.5,
                         'axes.labelcolor': '#0A0A0A',
@@ -346,7 +353,7 @@ if st.button("Predict My Finish Time"):
                         'axes.facecolor': '#FAFAF7',
                     })
 
-                    fig, ax = plt.subplots(figsize=(10, 6))
+                    fig, ax = plt.subplots(figsize=(7, 5))
                     shap.plots.waterfall(explanation, max_display=10, show=False)
                     ax = plt.gca()
                     ax.set_xlabel("Time (min)", labelpad=25)
@@ -382,14 +389,19 @@ if st.button("Predict My Finish Time"):
                             elif txt.startswith('−') or txt.startswith('-'):
                                 text.set_color('#004225')
 
-                    ax.annotate(f"Your time = {prediction:.1f}",
+                    your_hours = int(prediction // 60)
+                    your_mins = int(prediction % 60)
+                    avg_hours = int(base_value // 60)
+                    avg_mins = int(base_value % 60)
+
+                    ax.annotate(f"Your time: {your_hours}h {your_mins:02d}min",
                                 xy=(prediction, 1), xycoords=('data', 'axes fraction'),
                                 xytext=(0, 40), textcoords='offset points',
-                                ha='center', fontsize=10, color='gray')
-                    ax.annotate(f"Avg runner = {base_value:.1f}",
+                                ha='center', fontsize=8, color='gray')
+                    ax.annotate(f"Avg runner: {avg_hours}h {avg_mins:02d}min",
                                 xy=(base_value, 0), xycoords=('data', 'axes fraction'),
                                 xytext=(0, -40), textcoords='offset points',
-                                ha='center', fontsize=10, color='gray')
+                                ha='center', fontsize=8, color='gray')
 
                     st.pyplot(fig, bbox_inches='tight')
                     plt.close()
